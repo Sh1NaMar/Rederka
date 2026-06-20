@@ -1,0 +1,301 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Чтение: {{ book.title }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="bi bi-book"></i> {{ book.title }}</h1>
+    <div>
+        <a href="{% url 'book_detail' book.id %}" class="btn btn-outline-secondary"><i class="bi bi-pencil"></i> Редактировать</a>
+        <a href="{% url 'book_list' %}" class="btn btn-outline-secondary">← К списку</a>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Колонка с текстом книги (постранично) -->
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">Страница {{ page_number }} из {{ total_pages }}</h4>
+                <div>
+                    <button id="summarizePageBtn" class="btn btn-sm btn-info" data-page-id="{{ current_page.id }}">
+                        <i class="bi bi-file-text"></i> Сделать конспект
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <!-- Текст страницы -->
+                <div id="bookContent" style="white-space: pre-wrap; font-family: Georgia, serif; font-size: 1.1rem; line-height: 1.8; position: relative; user-select: text;">
+                    {{ current_page.content|linebreaks }}
+                    {% if current_page.summary %}
+                        <hr>
+                        <div class="alert alert-secondary">
+                            <strong><i class="bi bi-sticky"></i> Конспект страницы:</strong>
+                            <p>{{ current_page.summary }}</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="card-footer bg-transparent">
+                <div class="d-flex justify-content-between align-items-center">
+                    <nav aria-label="Навигация по страницам">
+                        <ul class="pagination justify-content-start mb-0">
+                            {% if page_number > 1 %}
+                                <li class="page-item"><a class="page-link" href="?page=1">« Первая</a></li>
+                                <li class="page-item"><a class="page-link" href="?page={{ page_number|add:"-1" }}">‹ Назад</a></li>
+                            {% endif %}
+                            <li class="page-item disabled"><a class="page-link">Страница {{ page_number }} из {{ total_pages }}</a></li>
+                            {% if page_number < total_pages %}
+                                <li class="page-item"><a class="page-link" href="?page={{ page_number|add:"1" }}">Вперед ›</a></li>
+                                <li class="page-item"><a class="page-link" href="?page={{ total_pages }}">Последняя »</a></li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-outline-danger" onclick="if(confirm('Удалить текущую страницу?')) { window.location.href='{% url 'delete_page' current_page.id %}' }">
+                            <i class="bi bi-trash"></i> Удалить страницу
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Колонка с иллюстрациями по сценам -->
+    <div class="col-lg-4">
+        <div class="card sticky-top" style="top: 1rem;">
+            <div class="card-header bg-transparent">
+                <h4>Иллюстрации к сценам</h4>
+                <span class="badge bg-info" id="sceneCount">{{ scenes|length }}</span>
+            </div>
+            <div class="card-body" id="illustrationsContainer" style="max-height: 80vh; overflow-y: auto;">
+                {% if scenes %}
+                    {% for scene in scenes %}
+                    <div class="mb-4 scene-item" data-scene-id="{{ scene.id }}">
+                        <h5>Сцена {{ scene.order }}</h5>
+                        <p class="small text-muted">{{ scene.description|truncatewords:20 }}</p>
+                        {% if scene.image %}
+                            <img src="{{ scene.image.url }}" class="img-fluid rounded shadow-sm mb-2" alt="Иллюстрация сцены {{ scene.order }}">
+                        {% else %}
+                            <div class="alert alert-secondary p-2 text-center">Иллюстрация не сгенерирована</div>
+                        {% endif %}
+                    </div>
+                    <hr>
+                    {% endfor %}
+                {% else %}
+                    <div class="alert alert-info">Нет сцен. Вы можете добавить их на вкладке «Сцены» в редактировании книги.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Плавающая кнопка для генерации из выделения -->
+<div id="selectionToolbar" style="display: none; position: fixed; z-index: 1000; background: #2c2c2c; border-radius: 2rem; padding: 0.3rem 0.7rem; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+    <button id="generateFromSelectionBtn" class="btn btn-sm btn-light">
+        <i class="bi bi-stars"></i> Иллюстрация
+    </button>
+    <button id="closeSelectionToolbar" class="btn btn-sm btn-outline-light">
+        <i class="bi bi-x-lg"></i>
+    </button>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // ---- Общие тосты ----
+    function showToast(message, isError = false) {
+        const toastEl = document.getElementById('liveToast');
+        if (!toastEl) return;
+        const toast = new bootstrap.Toast(toastEl);
+        const toastBody = toastEl.querySelector('.toast-body');
+        toastBody.innerHTML = message;
+        if (isError) toastEl.classList.add('bg-danger');
+        else toastEl.classList.remove('bg-danger');
+        toast.show();
+        setTimeout(() => toastEl.classList.remove('bg-danger'), 5000);
+    }
+
+    // ---- Генерация иллюстрации из выделенного текста ----
+    (function() {
+        const bookContent = document.getElementById('bookContent');
+        const toolbar = document.getElementById('selectionToolbar');
+        const genBtn = document.getElementById('generateFromSelectionBtn');
+        const closeBtn = document.getElementById('closeSelectionToolbar');
+        const illustrationsContainer = document.getElementById('illustrationsContainer');
+        const sceneCountBadge = document.getElementById('sceneCount');
+
+        const bookId = parseInt('{{ book.id }}');
+        let selectedText = '';
+
+        function showToolbar(x, y) {
+            toolbar.style.display = 'block';
+            toolbar.style.left = x + 'px';
+            toolbar.style.top = y + 'px';
+        }
+
+        function hideToolbar() {
+            toolbar.style.display = 'none';
+        }
+
+        document.addEventListener('mouseup', function(e) {
+            const selection = window.getSelection();
+            const text = selection.toString().trim();
+            if (!bookContent.contains(selection.anchorNode)) {
+                hideToolbar();
+                return;
+            }
+            if (text.length > 0) {
+                selectedText = text;
+                const range = selection.getRangeAt(0);
+                const rect = range.getBoundingClientRect();
+                const x = rect.left + window.scrollX;
+                const y = rect.top + window.scrollY - 50;
+                showToolbar(x, y);
+            } else {
+                hideToolbar();
+            }
+        });
+
+        closeBtn.addEventListener('click', function() {
+            hideToolbar();
+            window.getSelection().removeAllRanges();
+        });
+
+        genBtn.addEventListener('click', async function() {
+            if (!selectedText) return;
+            genBtn.disabled = true;
+            genBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
+
+            const csrfToken = document.querySelector('[name=csrf-token]').content;
+            try {
+                const resp = await fetch(`/api/generate/selection/${bookId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    },
+                    body: JSON.stringify({ text: selectedText })
+                });
+                if (!resp.ok) {
+                    const err = await resp.json();
+                    throw new Error(err.error || 'Ошибка сервера');
+                }
+                const data = await resp.json();
+                const newSceneHtml = `
+                    <div class="mb-4 scene-item" data-scene-id="${data.scene_id}" id="scene-${data.scene_id}">
+                        <h5>Сцена ${data.order}</h5>
+                        <p class="small text-muted">${selectedText.substring(0, 60)}${selectedText.length > 60 ? '…' : ''}</p>
+                        <div class="alert alert-secondary p-2 text-center">
+                            <div class="spinner-border text-dark" role="status">
+                                <span class="visually-hidden">Генерация...</span>
+                            </div>
+                            <div class="mt-1 small">Генерация иллюстрации...</div>
+                        </div>
+                    </div>
+                    <hr>
+                `;
+                const lastHr = illustrationsContainer.querySelector('hr:last-of-type');
+                if (lastHr) {
+                    lastHr.insertAdjacentHTML('beforebegin', newSceneHtml);
+                } else {
+                    illustrationsContainer.insertAdjacentHTML('beforeend', newSceneHtml);
+                }
+                sceneCountBadge.textContent = document.querySelectorAll('.scene-item').length;
+
+                hideToolbar();
+                window.getSelection().removeAllRanges();
+                selectedText = '';
+                pollTask(data.task_id, data.scene_id);
+
+            } catch (err) {
+                showToast('Ошибка: ' + err.message, true);
+            } finally {
+                genBtn.disabled = false;
+                genBtn.innerHTML = '<i class="bi bi-stars"></i> Иллюстрация';
+            }
+        });
+
+        async function pollTask(taskId, sceneId) {
+            let attempts = 0;
+            const maxAttempts = 60;
+            const interval = setInterval(async () => {
+                attempts++;
+                try {
+                    const resp = await fetch(`/api/task/${taskId}/`);
+                    const data = await resp.json();
+                    if (data.status === 'SUCCESS') {
+                        clearInterval(interval);
+                        window.location.reload();
+                    } else if (data.status === 'FAILURE') {
+                        clearInterval(interval);
+                        const el = document.getElementById(`scene-${sceneId}`);
+                        if (el) {
+                            const alertDiv = el.querySelector('.alert');
+                            if (alertDiv) {
+                                alertDiv.className = 'alert alert-danger p-2 text-center';
+                                alertDiv.innerHTML = `<i class="bi bi-exclamation-triangle"></i> Ошибка: ${data.error || 'неизвестная'}`;
+                            }
+                        }
+                    } else {
+                        const el = document.getElementById(`scene-${sceneId}`);
+                        if (el) {
+                            const alertDiv = el.querySelector('.alert');
+                            if (alertDiv) {
+                                alertDiv.innerHTML = `<div class="spinner-border text-dark spinner-border-sm" role="status"></div> <span class="small">${data.status || 'В процессе...'}</span>`;
+                            }
+                        }
+                    }
+                    if (attempts >= maxAttempts) {
+                        clearInterval(interval);
+                        const el = document.getElementById(`scene-${sceneId}`);
+                        if (el) {
+                            const alertDiv = el.querySelector('.alert');
+                            if (alertDiv) {
+                                alertDiv.className = 'alert alert-warning p-2 text-center';
+                                alertDiv.innerHTML = '<i class="bi bi-clock"></i> Превышено время ожидания. Обновите страницу.';
+                            }
+                        }
+                    }
+                } catch (err) {
+                    clearInterval(interval);
+                    console.error('Poll error:', err);
+                }
+            }, 2000);
+        }
+
+        document.addEventListener('mousedown', function(e) {
+            if (toolbar.style.display !== 'none' && !toolbar.contains(e.target) && !e.target.closest('#selectionToolbar')) {
+                hideToolbar();
+            }
+        });
+    })();
+
+    // ---- Конспектирование страницы ----
+    document.getElementById('summarizePageBtn')?.addEventListener('click', async function() {
+        const pageId = this.dataset.pageId;
+        const btn = this;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> Генерация...';
+        try {
+            const resp = await fetch(`/api/summarize-page/${pageId}/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': document.querySelector('[name=csrf-token]').content }
+            });
+            const data = await resp.json();
+            if (data.task_id) {
+                showToast('Конспект генерируется... Обновите страницу через 30 секунд');
+                setTimeout(() => location.reload(), 30000);
+            } else {
+                showToast('Ошибка: ' + (data.error || 'неизвестная'), true);
+            }
+        } catch (err) {
+            showToast('Ошибка соединения: ' + err.message, true);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-file-text"></i> Сделать конспект';
+        }
+    });
+</script>
+{% endblock %}

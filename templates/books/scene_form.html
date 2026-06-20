@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block title %}{% if scene %}Редактировать{% else %}Добавить{% endif %} сцену{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-transparent">
+                <h3>{% if scene %}Редактировать{% else %}Добавить{% endif %} сцену</h3>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="order" class="form-label">Номер сцены</label>
+                        <input type="number" name="order" id="order" class="form-control"
+                               value="{{ scene.order|default:'' }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Описание</label>
+                        <textarea name="description" id="description" rows="4" class="form-control" required>{{ scene.description|default:'' }}</textarea>
+                    </div>
+                    <!-- Если нужны привязки к персонажам/локациям, можно добавить сюда поля -->
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                    <a href="{% url 'book_detail' book.id %}" class="btn btn-secondary">Отмена</a>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

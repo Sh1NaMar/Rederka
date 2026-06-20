@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% block title %}Добавить страницы{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-transparent">
+                <h3><i class="bi bi-plus-square"></i> Добавить текст в «{{ book.title }}»</h3>
+                <span class="badge bg-secondary">Новые страницы будут добавлены в конец книги</span>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="content" class="form-label">Введите новый текст (главу, раздел, продолжение)</label>
+                        <textarea name="content" id="content" class="form-control" rows="12" required placeholder="Вставьте текст..."></textarea>
+                    </div>
+                    {% if error %}
+                        <div class="alert alert-danger">{{ error }}</div>
+                    {% endif %}
+                    <button type="submit" class="btn btn-primary">Добавить страницы</button>
+                    <a href="{% url 'book_detail' book.id %}" class="btn btn-secondary">Отмена</a>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

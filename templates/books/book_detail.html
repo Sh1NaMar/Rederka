@@ -1,0 +1,508 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ book.title }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="bi bi-book"></i> {{ book.title }}</h1>
+    <div>
+        <a href="{% url 'book_read' book.id %}" class="btn btn-outline-info me-2"><i class="bi bi-eye"></i> Читать книгу</a>
+        <a href="{% url 'book_list' %}" class="btn btn-outline-secondary">← Назад</a>
+    </div>
+</div>
+
+<!-- Вкладки -->
+<ul class="nav nav-tabs mb-4" id="bookTabs" role="tablist">
+    <li class="nav-item"><button class="nav-link active" id="scenes-tab" data-bs-toggle="tab" data-bs-target="#scenes">🎬 Сцены ({{ scenes|length }})</button></li>
+    <li class="nav-item"><button class="nav-link" id="chars-tab" data-bs-toggle="tab" data-bs-target="#characters">👥 Персонажи ({{ characters|length }})</button></li>
+    <li class="nav-item"><button class="nav-link" id="locs-tab" data-bs-toggle="tab" data-bs-target="#locations">🏞️ Локации ({{ locations|length }})</button></li>
+</ul>
+
+<div class="tab-content">
+    <!-- Вкладка Сцены -->
+    <div class="tab-pane fade show active" id="scenes" role="tabpanel">
+        <!-- Кнопки управления -->
+        <div class="mb-3 d-flex flex-wrap gap-2">
+            <button id="analyzeBookBtn" class="btn btn-info" data-book-id="{{ book.id }}">
+                <i class="bi bi-magic"></i> Анализировать книгу на сцены (LLM)
+            </button>
+            <button id="generateAllBtn" class="btn btn-success" data-book-id="{{ book.id }}" {% if not scenes %}disabled{% endif %}>
+                <i class="bi bi-images"></i> Сгенерировать все иллюстрации
+            </button>
+            <button id="deleteAllScenesBtn" class="btn btn-danger" data-book-id="{{ book.id }}" {% if not scenes %}disabled{% endif %}>
+                <i class="bi bi-trash"></i> Удалить все сцены
+            </button>
+            <a href="{% url 'scene_create' book.id %}" class="btn btn-primary">
+                <i class="bi bi-plus-circle"></i> Добавить сцену (с привязками)
+            </a>
+            <!-- Кнопка добавления страниц -->
+            <a href="{% url 'add_pages' book.id %}" class="btn btn-outline-success">
+                <i class="bi bi-plus-square"></i> Добавить страницы
+            </a>
+        </div>
+        <div id="analysis-progress" class="mb-3"></div>
+
+        <!-- Форма ручного добавления сцены (простая, без привязок) -->
+        <div class="card mb-4">
+            <div class="card-header bg-transparent">
+                <i class="bi bi-plus-circle"></i> Быстрое добавление сцены
+                <span class="badge bg-secondary ms-2">без привязки к персонажам/локациям</span>
+            </div>
+            <div class="card-body">
+                <form method="post" action="{% url 'scene_create' book.id %}" class="row g-2">
+                    {% csrf_token %}
+                    <div class="col-md-2">
+                        <input type="number" name="order" class="form-control" placeholder="Номер сцены" required>
+                    </div>
+                    <div class="col-md-8">
+                        <textarea name="description" class="form-control" rows="1" placeholder="Описание сцены (текст отрывка)"></textarea>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-primary w-100">Добавить</button>
+                    </div>
+                </form>
+                <small class="text-muted">Для привязки к персонажам/локациям используйте кнопку «Добавить сцену (с привязками)» выше.</small>
+            </div>
+        </div>
+
+        {% if scenes %}
+            {% for scene in scenes %}
+            <div class="card mb-4 scene-card" id="scene-{{ scene.id }}">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <h5>Сцена {{ scene.order }}</h5>
+                        <div>
+                            <a href="{% url 'scene_edit' scene.id %}" class="btn btn-sm btn-outline-warning">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            <a href="{% url 'scene_delete' scene.id %}" class="btn btn-sm btn-outline-danger" onclick="return confirm('Удалить эту сцену?')">
+                                <i class="bi bi-trash"></i>
+                            </a>
+                        </div>
+                    </div>
+
+                    <p class="text-light">{{ scene.description|truncatewords:50 }}</p>
+
+                    <!-- Отображение связанных персонажей и локаций -->
+                    <div class="mb-2">
+                        {% if scene.characters.all %}
+                            <span class="badge bg-secondary">Персонажи:</span>
+                            {% for ch in scene.characters.all %}
+                                <span class="badge bg-light text-dark">{{ ch.name }}</span>
+                            {% endfor %}
+                        {% endif %}
+                        {% if scene.locations.all %}
+                            <span class="badge bg-secondary ms-2">Локации:</span>
+                            {% for loc in scene.locations.all %}
+                                <span class="badge bg-light text-dark">{{ loc.name }}</span>
+                            {% endfor %}
+                        {% endif %}
+                        {% if not scene.characters.all and not scene.locations.all %}
+                            <span class="badge bg-light text-muted">нет привязок</span>
+                        {% endif %}
+                    </div>
+
+                    {% if scene.image %}
+                    <div class="mb-2">
+                        <img src="{{ scene.image.url }}" class="img-fluid rounded shadow-sm" alt="Иллюстрация сцены {{ scene.order }}" style="max-height: 400px;">
+                    </div>
+                    <div class="d-flex flex-wrap gap-2">
+                        <button class="btn btn-sm btn-warning regenerate-scene" data-scene-id="{{ scene.id }}">
+                            <i class="bi bi-arrow-repeat"></i> Перегенерировать
+                        </button>
+                        <!-- Кнопка "В избранное" -->
+                        <button class="btn btn-sm {% if scene.id in favorite_scene_ids %}btn-warning{% else %}btn-outline-warning{% endif %} toggle-favorite" data-scene-id="{{ scene.id }}">
+                            <i class="bi {% if scene.id in favorite_scene_ids %}bi-star-fill{% else %}bi-star{% endif %}"></i>
+                            {% if scene.id in favorite_scene_ids %}В избранном{% else %}В избранное{% endif %}
+                        </button>
+                    </div>
+                    {% else %}
+                    <button class="btn btn-primary generate-scene" data-scene-id="{{ scene.id }}">
+                        <i class="bi bi-stars"></i> Сгенерировать иллюстрацию
+                    </button>
+                    <div class="spinner-border text-warning ms-2 spinner-scene" style="display: none;" role="status">
+                        <span class="visually-hidden">Генерация...</span>
+                    </div>
+                    <span class="status-text ms-2"></span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="alert alert-secondary">Нет сцен. Добавьте вручную или нажмите «Анализировать книгу на сцены».</div>
+        {% endif %}
+    </div>
+    <!-- Конец вкладки Сцены -->
+
+    <!-- Вкладка Персонажи -->
+    <div class="tab-pane fade" id="characters" role="tabpanel">
+        <div class="card">
+            <div class="card-header bg-transparent d-flex justify-content-between">
+                <span>Список персонажей</span>
+                <button class="btn btn-sm btn-primary" data-bs-toggle="collapse" data-bs-target="#addCharacterForm">+ Добавить</button>
+            </div>
+            <div class="collapse" id="addCharacterForm">
+                <div class="card-body">
+                    <form method="post" action="{% url 'character_create' book.id %}">
+                        {% csrf_token %}
+                        <div class="row">
+                            <div class="col-md-4"><input type="text" name="name" placeholder="Имя" class="form-control" required></div>
+                            <div class="col-md-6"><textarea name="context_description" placeholder="Описание" class="form-control" rows="1" required></textarea></div>
+                            <div class="col-md-2"><button type="submit" class="btn btn-success w-100">Сохранить</button></div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            <ul class="list-group list-group-flush">
+                {% for char in characters %}
+                <li class="list-group-item bg-transparent d-flex justify-content-between">
+                    <div style="flex: 1;">
+                        <strong style="color: #1e1e1e;">{{ char.name }}</strong>
+                        <br>
+                        <small class="text-muted description-text" data-full="{{ char.context_description|escape }}" style="display: inline-block; color: #2a2a2a;">
+                            {{ char.context_description|truncatechars:200 }}
+                        </small>
+                        {% if char.context_description|length > 200 %}
+                            <a href="#" class="toggle-description" style="font-size: 0.8rem;">показать полностью</a>
+                        {% endif %}
+                        <br>
+                        <small class="text-info">Сцен: {{ char.scenes.count }}</small>
+                    </div>
+                    <div>
+                        <a href="{% url 'character_edit' char.id %}" class="btn btn-sm btn-outline-warning"><i class="bi bi-pencil"></i></a>
+                        <a href="{% url 'character_delete' char.id %}" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></a>
+                    </div>
+                </li>
+                {% empty %}
+                <li class="list-group-item bg-transparent">Нет персонажей</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+
+    <!-- Вкладка Локации -->
+    <div class="tab-pane fade" id="locations" role="tabpanel">
+        <div class="card">
+            <div class="card-header bg-transparent d-flex justify-content-between">
+                <span>Список локаций</span>
+                <button class="btn btn-sm btn-primary" data-bs-toggle="collapse" data-bs-target="#addLocationForm">+ Добавить</button>
+            </div>
+            <div class="collapse" id="addLocationForm">
+                <div class="card-body">
+                    <form method="post" action="{% url 'location_create' book.id %}">
+                        {% csrf_token %}
+                        <div class="row">
+                            <div class="col-md-4"><input type="text" name="name" placeholder="Название" class="form-control" required></div>
+                            <div class="col-md-6"><textarea name="context_description" placeholder="Описание" class="form-control" rows="1" required></textarea></div>
+                            <div class="col-md-2"><button type="submit" class="btn btn-success w-100">Сохранить</button></div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            <ul class="list-group list-group-flush">
+                {% for loc in locations %}
+                <li class="list-group-item bg-transparent d-flex justify-content-between">
+                    <div style="flex: 1;">
+                        <strong style="color: #1e1e1e;">{{ loc.name }}</strong>
+                        <br>
+                        <small class="text-muted description-text" data-full="{{ loc.context_description|escape }}" style="display: inline-block; color: #2a2a2a;">
+                            {{ loc.context_description|truncatechars:200 }}
+                        </small>
+                        {% if loc.context_description|length > 200 %}
+                            <a href="#" class="toggle-description" style="font-size: 0.8rem;">показать полностью</a>
+                        {% endif %}
+                        <br>
+                        <small class="text-info">Сцен: {{ loc.scenes.count }}</small>
+                    </div>
+                    <div>
+                        <a href="{% url 'location_edit' loc.id %}" class="btn btn-sm btn-outline-warning"><i class="bi bi-pencil"></i></a>
+                        <a href="{% url 'location_delete' loc.id %}" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></a>
+                    </div>
+                </li>
+                {% empty %}
+                <li class="list-group-item bg-transparent">Нет локаций</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+    <!-- Конец вкладки Локации -->
+</div>
+<!-- Конец tab-content -->
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // --- Тосты ---
+    const toastEl = document.getElementById('liveToast');
+    const toast = new bootstrap.Toast(toastEl);
+    function showToast(message, isError = false) {
+        const toastBody = document.querySelector('.toast-body');
+        toastBody.innerHTML = message;
+        if (isError) toastEl.classList.add('bg-danger');
+        else toastEl.classList.remove('bg-danger');
+        toast.show();
+        setTimeout(() => toastEl.classList.remove('bg-danger'), 5000);
+    }
+
+    // --- Генерация одной сцены ---
+    async function generateScene(sceneId, btnElement) {
+        const card = document.getElementById(`scene-${sceneId}`);
+        const spinner = card.querySelector('.spinner-scene');
+        const statusSpan = card.querySelector('.status-text');
+        if (spinner) spinner.style.display = 'inline-block';
+        if (btnElement) btnElement.disabled = true;
+        if (statusSpan) statusSpan.textContent = 'Запуск...';
+
+        try {
+            const resp = await fetch(`/api/generate/scene/${sceneId}/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': document.querySelector('[name=csrf-token]').content }
+            });
+            const data = await resp.json();
+            if (statusSpan) statusSpan.textContent = `Задача ${data.task_id.slice(0,8)}...`;
+            pollTask(sceneId, data.task_id);
+        } catch(err) {
+            showToast('Ошибка запуска: ' + err.message, true);
+            if (spinner) spinner.style.display = 'none';
+            if (btnElement) btnElement.disabled = false;
+        }
+    }
+
+    async function pollTask(sceneId, taskId, attempt = 0) {
+        const card = document.getElementById(`scene-${sceneId}`);
+        if (!card) return;
+        const spinner = card.querySelector('.spinner-scene');
+        const statusSpan = card.querySelector('.status-text');
+        const btn = card.querySelector('.generate-scene, .regenerate-scene');
+        if (attempt > 60) {
+            if (statusSpan) statusSpan.textContent = '❌ Таймаут';
+            if (spinner) spinner.style.display = 'none';
+            if (btn) btn.disabled = false;
+            return;
+        }
+        try {
+            const resp = await fetch(`/api/task/${taskId}/`);
+            const data = await resp.json();
+            if (data.status === 'SUCCESS') {
+                if (statusSpan) statusSpan.textContent = '✅ Готово! Обновление...';
+                setTimeout(() => location.reload(), 1500);
+            } else if (data.status === 'FAILURE') {
+                if (statusSpan) statusSpan.textContent = '❌ Ошибка: ' + (data.error || '');
+                if (spinner) spinner.style.display = 'none';
+                if (btn) btn.disabled = false;
+            } else {
+                if (statusSpan) statusSpan.textContent = `⏳ ${data.status}...`;
+                setTimeout(() => pollTask(sceneId, taskId, attempt+1), 3000);
+            }
+        } catch {
+            setTimeout(() => pollTask(sceneId, taskId, attempt+1), 5000);
+        }
+    }
+
+    // --- Массовая генерация ---
+    document.getElementById('generateAllBtn')?.addEventListener('click', async function() {
+        const bookId = this.dataset.bookId;
+        const btn = this;
+        btn.disabled = true;
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Запуск...';
+
+        try {
+            const resp = await fetch(`/api/generate/all/${bookId}/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': document.querySelector('[name=csrf-token]').content }
+            });
+            const data = await resp.json();
+            if (!data.tasks || data.tasks.length === 0) {
+                showToast('Нет сцен для генерации или все уже сгенерированы');
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+                return;
+            }
+
+            const total = data.tasks.length;
+            let completed = 0;
+            let failed = 0;
+
+            const progressHtml = `
+                <div id="progressContainer" class="mt-3 mb-3 p-2 bg-white rounded border">
+                    <div class="d-flex justify-content-between small mb-1">
+                        <span><i class="bi bi-images"></i> Генерация иллюстраций</span>
+                        <span id="progressCount">0/${total}</span>
+                    </div>
+                    <div class="progress" style="height: 25px;">
+                        <div id="progressBar" class="progress-bar bg-dark" role="progressbar" style="width: 0%;">0%</div>
+                    </div>
+                    <div id="progressDetails" class="small text-muted mt-1"></div>
+                </div>
+            `;
+            const container = document.getElementById('analysis-progress') || document.querySelector('.mb-3').parentNode;
+            container.insertAdjacentHTML('beforeend', progressHtml);
+
+            const updateProgress = () => {
+                const percent = Math.round(((completed + failed) / total) * 100);
+                const progressBar = document.getElementById('progressBar');
+                const progressCount = document.getElementById('progressCount');
+                if (progressBar) {
+                    progressBar.style.width = percent + '%';
+                    progressBar.textContent = percent + '%';
+                }
+                if (progressCount) progressCount.textContent = `${completed + failed}/${total}`;
+                const detailsSpan = document.getElementById('progressDetails');
+                if (detailsSpan) detailsSpan.textContent = `✅ Успешно: ${completed}  ❌ Ошибок: ${failed}`;
+            };
+
+            const tasks = data.tasks.map(item => ({
+                taskId: item.task_id,
+                sceneId: item.scene_id
+            }));
+
+            const pollOne = async (taskId, sceneId) => {
+                let attempts = 0;
+                while (attempts < 45) {
+                    try {
+                        const res = await fetch(`/api/task/${taskId}/`);
+                        const statusData = await res.json();
+                        if (statusData.status === 'SUCCESS') {
+                            completed++;
+                            updateProgress();
+                            return 'success';
+                        } else if (statusData.status === 'FAILURE') {
+                            failed++;
+                            updateProgress();
+                            console.error(`Task ${taskId} failed:`, statusData.error);
+                            return 'failed';
+                        }
+                        await new Promise(r => setTimeout(r, 2000));
+                        attempts++;
+                    } catch (err) {
+                        console.error(`Poll error for ${taskId}:`, err);
+                        await new Promise(r => setTimeout(r, 3000));
+                        attempts++;
+                    }
+                }
+                failed++;
+                updateProgress();
+                return 'timeout';
+            };
+
+            const results = await Promise.all(tasks.map(t => pollOne(t.taskId, t.sceneId)));
+            const successCount = results.filter(r => r === 'success').length;
+            const failCount = results.filter(r => r !== 'success').length;
+
+            showToast(`Генерация завершена: успешно ${successCount}, ошибок ${failCount}`);
+            setTimeout(() => location.reload(), 3000);
+        } catch (err) {
+            showToast('Ошибка массовой генерации: ' + err.message, true);
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    });
+
+    // --- Анализ книги ---
+    document.getElementById('analyzeBookBtn')?.addEventListener('click', async function() {
+        const bookId = this.dataset.bookId;
+        const progressDiv = document.getElementById('analysis-progress');
+        progressDiv.innerHTML = '<div class="alert alert-info">Запуск анализа (может занять минуту)...</div>';
+        try {
+            const resp = await fetch(`/api/analyze/book/${bookId}/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': document.querySelector('[name=csrf-token]').content }
+            });
+            const data = await resp.json();
+            if (!resp.ok) {
+                progressDiv.innerHTML = `<div class="alert alert-danger">${data.error || 'Ошибка'}</div>`;
+                return;
+            }
+            if (data.task_id) {
+                progressDiv.innerHTML = `<div class="alert alert-secondary">Анализ запущен. Обновите страницу через 30 секунд.</div>`;
+                setTimeout(() => location.reload(), 30000);
+            } else {
+                progressDiv.innerHTML = `<div class="alert alert-danger">${data.error || 'Неизвестная ошибка'}</div>`;
+            }
+        } catch(err) {
+            progressDiv.innerHTML = '<div class="alert alert-danger">Ошибка соединения</div>';
+        }
+    });
+
+    // --- Удаление всех сцен ---
+    document.getElementById('deleteAllScenesBtn')?.addEventListener('click', async function() {
+        if (!confirm('Удалить все сцены и их иллюстрации? Отменить нельзя.')) return;
+        const bookId = this.dataset.bookId;
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/book/${bookId}/scenes/delete-all/`;
+        form.innerHTML = `<input type="hidden" name="csrfmiddlewaretoken" value="${document.querySelector('[name=csrf-token]').content}">`;
+        document.body.appendChild(form);
+        form.submit();
+    });
+
+    // --- Обработчики для кнопок генерации (делегирование) ---
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.generate-scene')) {
+            const btn = e.target.closest('.generate-scene');
+            const sceneId = btn.dataset.sceneId;
+            if (sceneId) generateScene(sceneId, btn);
+        }
+        if (e.target.closest('.regenerate-scene')) {
+            const btn = e.target.closest('.regenerate-scene');
+            const sceneId = btn.dataset.sceneId;
+            if (sceneId) generateScene(sceneId, btn);
+        }
+    });
+
+    // --- Сворачивание/разворачивание описаний персонажей и локаций ---
+    document.addEventListener('DOMContentLoaded', function() {
+        const toggleLinks = document.querySelectorAll('.toggle-description');
+        toggleLinks.forEach(function(link) {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                const parent = this.closest('.list-group-item');
+                const descSpan = parent.querySelector('.description-text');
+                const fullText = descSpan.dataset.full;
+                const currentText = descSpan.textContent.trim();
+
+                if (currentText === fullText) {
+                    descSpan.textContent = fullText.substring(0, 200) + '…';
+                    this.textContent = 'показать полностью';
+                } else {
+                    descSpan.textContent = fullText;
+                    this.textContent = 'свернуть';
+                }
+            });
+        });
+    });
+
+    // --- Избранное: переключение ---
+    document.addEventListener('click', async function(e) {
+        const btn = e.target.closest('.toggle-favorite');
+        if (!btn) return;
+        e.preventDefault();
+        const sceneId = btn.dataset.sceneId;
+        if (!sceneId) return;
+
+        try {
+            const resp = await fetch(`/api/favorite/toggle/${sceneId}/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': document.querySelector('[name=csrf-token]').content }
+            });
+            const data = await resp.json();
+            if (data.status === 'added') {
+                btn.innerHTML = '<i class="bi bi-star-fill"></i> В избранном';
+                btn.className = 'btn btn-sm btn-warning toggle-favorite';
+                showToast('Добавлено в избранное');
+            } else if (data.status === 'removed') {
+                btn.innerHTML = '<i class="bi bi-star"></i> В избранное';
+                btn.className = 'btn btn-sm btn-outline-warning toggle-favorite';
+                showToast('Удалено из избранного');
+            }
+        } catch (err) {
+            showToast('Ошибка: ' + err.message, true);
+        }
+    });
+</script>
+{% endblock %}

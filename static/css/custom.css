@@ -1,0 +1,260 @@
+/* =========================================
+   Book Illustrator — строгий стиль "черно-белое + дерево"
+   Повышенная контрастность текста
+   ========================================= */
+
+/* --- Общие настройки --- */
+body {
+    background-color: #f0ece5;  /* чуть более тёмный кремовый для лучшего контраста */
+    color: #111111;             /* почти чёрный текст */
+    font-family: 'Segoe UI', 'Roboto', system-ui, -apple-system, sans-serif;
+    line-height: 1.6;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    color: #0a0a0a;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+
+/* --- Карточки с белым фоном для чистоты --- */
+.card {
+    background: #ffffff;
+    border: 1px solid #d4cac0;
+    border-radius: 0.75rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    transition: box-shadow 0.2s ease;
+}
+
+.card-body {
+    padding: 1.5rem;
+    color: #1e1e1e;  /* тёмный цвет для основного текста внутри карточек */
+}
+
+/* --- Текст в карточках (описание сцен, промпты) --- */
+.card-body p, .card-text, .text-light {
+    color: #2a2a2a !important;  /* перебиваем возможные светлые классы */
+    font-weight: 450;
+}
+
+/* --- Для описания сцены (обычно в <p>) --- */
+.scene-card p, .card p {
+    color: #1c1c1c;
+    font-size: 1rem;
+    background-color: #fefef7;  /* очень лёгкий фон для абзаца, если нужно */
+    padding: 0.25rem 0;
+    border-radius: 0.25rem;
+}
+
+/* --- Мелкий текст (метаданные) --- */
+.text-muted, small {
+    color: #4e4e4e !important;
+    font-weight: 400;
+}
+
+/* --- Кнопки --- */
+.btn {
+    border-radius: 2rem;
+    font-weight: 500;
+    padding: 0.4rem 1.2rem;
+    transition: all 0.2s ease;
+}
+
+.btn-primary {
+    background-color: #2c2c2c;
+    color: white;
+    border-color: #2c2c2c;
+}
+.btn-primary:hover {
+    background-color: #111111;
+}
+
+.btn-secondary {
+    background-color: #e5dfd8;
+    color: #1f1f1f;
+    border-color: #ccc2b8;
+}
+
+.btn-outline-primary {
+    color: #2c2c2c;
+    border-color: #b0a088;
+}
+.btn-outline-primary:hover {
+    background-color: #2c2c2c;
+    color: white;
+}
+
+.btn-info {
+    background-color: #d9cec0;
+    color: #1a1a1a;
+    border-color: #c2b3a2;
+}
+.btn-success {
+    background-color: #5e4b3a;
+    color: white;
+}
+.btn-warning {
+    background-color: #d6b575;
+    color: #1f1f1f;
+}
+.btn-danger {
+    background-color: #9e5e5e;
+    color: white;
+}
+
+/* --- Навбар --- */
+.navbar {
+    background-color: #1e1b18 !important;
+    border-bottom: 1px solid #3e352e;
+}
+.navbar-brand, .navbar-nav .nav-link {
+    color: #f0eae3 !important;
+}
+.navbar-brand:hover, .navbar-nav .nav-link:hover {
+    color: #ffffff !important;
+}
+
+/* --- Изображения сцен --- */
+.scene-image, .img-fluid.rounded {
+    border-radius: 1rem;
+    border: 1px solid #ddd2c6;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+/* --- Табы --- */
+.nav-tabs {
+    border-bottom: 1px solid #d9cec0;
+}
+.nav-tabs .nav-link {
+    color: #3a2f25;
+    font-weight: 500;
+}
+.nav-tabs .nav-link.active {
+    color: #000000;
+    border-bottom: 2px solid #2c2c2c;
+    font-weight: 600;
+}
+
+/* --- Формы --- */
+.form-control, .form-select {
+    background-color: #ffffff;
+    border: 1px solid #c7bcb0;
+    color: #111;
+}
+.form-control:focus {
+    border-color: #5e4b3a;
+    box-shadow: 0 0 0 0.2rem rgba(94, 75, 58, 0.25);
+}
+
+/* --- Спиннер --- */
+.spinner-border {
+    color: #5e4b3a;
+}
+
+/* --- Тосты (уведомления) --- */
+.toast {
+    background-color: #2c2c2c;
+    color: #f0ebe5;
+}
+.toast-header {
+    background-color: #1f1c19;
+    color: #e2d8ce;
+}
+
+/* --- Пагинация --- */
+.pagination .page-link {
+    background-color: #fff;
+    color: #2c2c2c;
+    border-color: #ded3c8;
+}
+.pagination .page-item.active .page-link {
+    background-color: #2c2c2c;
+    border-color: #2c2c2c;
+    color: white;
+}
+
+/* --- Для статусов генерации (надпись рядом со спиннером) --- */
+.status-text {
+    color: #2c2c2c;
+    font-weight: 500;
+    background-color: #f3efea;
+    padding: 0.2rem 0.6rem;
+    border-radius: 1rem;
+    display: inline-block;
+}
+
+/* --- Алерты (bootstrap) --- */
+.alert {
+    background-color: #f8f5f0;
+    border-left: 4px solid #5e4b3a;
+    color: #1e1e1e;
+}
+.alert-secondary {
+    background-color: #e9e5df;
+    border-left-color: #8b7355;
+}
+
+/* --- Улучшенная читаемость для текста из LLM (промпты, описания) --- */
+pre, code, .prompt-text {
+    background-color: #f4f1ec;
+    padding: 0.5rem;
+    border-radius: 0.5rem;
+    color: #0c0c0c;
+    font-family: monospace;
+}
+
+/* Прогресс-бар в чёрно-белом стиле */
+.progress {
+    background-color: #e9e5df;
+    border-radius: 1rem;
+}
+.progress-bar {
+    background-color: #2c2c2c !important;
+    color: white;
+    font-weight: 500;
+    border-radius: 1rem;
+}
+/* Стили для тулбара выделения */
+#selectionToolbar {
+    background: #2c2c2c !important;
+    border-radius: 2rem !important;
+    padding: 0.25rem 0.5rem !important;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4) !important;
+    backdrop-filter: blur(4px);
+    border: 1px solid #5a4a3a;
+}
+
+#selectionToolbar .btn {
+    font-size: 0.9rem;
+    border-radius: 2rem;
+    padding: 0.2rem 1rem;
+}
+
+#selectionToolbar .btn-light {
+    background: #f0ebe5;
+    color: #1e1b18;
+    border: none;
+}
+
+#selectionToolbar .btn-light:hover {
+    background: #ffffff;
+}
+
+#selectionToolbar .btn-outline-light {
+    color: #f0ebe5;
+    border-color: #6b5b4b;
+}
+
+#selectionToolbar .btn-outline-light:hover {
+    background: #4a3f36;
+}
+
+.toggle-description {
+    color: #8a7a6a;
+    text-decoration: none;
+    margin-left: 5px;
+}
+.toggle-description:hover {
+    color: #ffffff;
+    text-decoration: underline;
+}
