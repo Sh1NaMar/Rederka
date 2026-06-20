@@ -1,5 +1,6 @@
 from django.db import models
 from django.conf import settings
+import os
 
 class Book(models.Model):
     title = models.CharField(max_length=500)
@@ -34,6 +35,12 @@ class Scene(models.Model):
     prompt_used = models.TextField(blank=True)
     characters = models.ManyToManyField('Character', blank=True, related_name='scenes')
     locations = models.ManyToManyField('Location', blank=True, related_name='scenes')
+
+    def delete(self, *args, **kwargs):
+        # Удаляем файл изображения, если он есть
+        if self.image and os.path.isfile(self.image.path):
+            os.remove(self.image.path)
+        super().delete(*args, **kwargs)
 
     class Meta:
         ordering = ['order']

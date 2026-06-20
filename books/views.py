@@ -269,7 +269,9 @@ def scene_delete(request, pk):
 @login_required
 def delete_all_scenes(request, book_id):
     book = get_object_or_404(Book, id=book_id, owner=request.user)
-    book.scenes.all().delete()
+    scenes = book.scenes.all()
+    for scene in scenes:
+        scene.delete()  # теперь вызовется наш переопределённый delete()
     return redirect('book_detail', book_id=book.id)
 
 
