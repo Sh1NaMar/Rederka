@@ -4,6 +4,9 @@ from decouple import config
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+CSRF_TRUSTED_ORIGINS = [
+    'https://web-production-579b1.up.railway.app',
+]
 CF_API_TOKEN = config('CF_API_TOKEN', default='')
 SECRET_KEY = config('SECRET_KEY', default='change-me')
 GROQ_API_KEY = config('GROQ_API_KEY')
